@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Send, Bot, User } from "lucide-react"
+import { Send, Bot, User, Sparkles } from "lucide-react"
 import { createClientSafe, isSupabaseConfigured } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -49,7 +49,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
       const supabase = createClientSafe()
       if (!supabase) return
 
-      // Try to get existing conversation
       const { data: existing } = await supabase
         .from('conversations')
         .select('id')
@@ -61,13 +60,12 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
       if (existing) {
         setConversationId(existing.id)
       } else {
-        // Create new conversation
         const { data: newConv } = await supabase
           .from('conversations')
           .insert({
             project_id: projectId,
             title: 'New Conversation',
-            created_by: '00000000-0000-0000-0000-000000000000', // Single user
+            created_by: '00000000-0000-0000-0000-000000000000',
           })
           .select()
           .single()
@@ -141,7 +139,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
     setInput("")
     setLoading(true)
 
-    // Add user message locally
     const localUserMsg = {
       id: Date.now().toString(),
       role: 'user',
@@ -150,7 +147,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
     }
     setMessages((prev) => [...prev, localUserMsg])
 
-    // If Supabase is configured, save to database
     if (conversationId && hasSupabase) {
       try {
         const supabase = createClientSafe()
@@ -169,7 +165,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
       }
     }
 
-    // Call AI API
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -194,7 +189,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
       const decoder = new TextDecoder()
       let assistantContent = ''
 
-      // Create placeholder assistant message
       const placeholderId = Date.now().toString()
       const placeholderMsg = {
         id: placeholderId,
@@ -221,7 +215,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
                 const parsed = JSON.parse(data)
                 if (parsed.content) {
                   assistantContent += parsed.content
-                  // Update message in real-time
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === placeholderId
@@ -238,7 +231,6 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
         }
       }
 
-      // Save assistant message if Supabase is configured
       if (conversationId && hasSupabase && assistantContent) {
         try {
           const supabase = createClientSafe()
@@ -273,86 +265,109 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
-        Select a project to start chatting
+      <div className="flex h-full items-center justify-center p-8 text-center bg-gradient-to-b from-white to-slate-50">
+        <div className="space-y-4">
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto">
+            <Sparkles className="h-8 w-8 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-lg font-medium text-slate-700">AI Assistant Ready</p>
+            <p className="text-sm text-slate-500">Select a project to start chatting</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b p-4">
-        <h2 className="text-sm font-semibold">AI Chat</h2>
-        {!hasSupabase && (
-          <p className="text-xs text-muted-foreground mt-1">
-            Running in local mode
-          </p>
-        )}
+    <div className="flex h-full flex-col bg-gradient-to-b from-white to-slate-50">
+      <div className="border-b border-slate-200 p-4 bg-white">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+            <Bot className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">AI Assistant</h2>
+            {!hasSupabase && (
+              <p className="text-xs text-slate-500">Local mode</p>
+            )}
+          </div>
+        </div>
       </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <div
               key={message.id}
               className={cn(
-                "flex gap-3",
+                "flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               )}
+              style={{ animationDelay: `${index * 50}ms` }}
             >
               {message.role === 'assistant' && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    <Bot className="h-4 w-4" />
+                <Avatar className="h-8 w-8 border-2 border-purple-100">
+                  <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500">
+                    <Bot className="h-4 w-4 text-white" />
                   </AvatarFallback>
                 </Avatar>
               )}
               <div
                 className={cn(
-                  "max-w-[80%] rounded-lg px-4 py-2",
+                  "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
                   message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                    : 'bg-white border border-slate-200'
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className={cn(
+                  "text-sm whitespace-pre-wrap leading-relaxed",
+                  message.role === 'assistant' && "text-slate-700"
+                )}>
+                  {message.content || <span className="text-slate-400">Thinking...</span>}
+                </p>
               </div>
               {message.role === 'user' && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    <User className="h-4 w-4" />
+                <Avatar className="h-8 w-8 border-2 border-purple-100">
+                  <AvatarFallback className="bg-gradient-to-r from-slate-500 to-slate-600">
+                    <User className="h-4 w-4 text-white" />
                   </AvatarFallback>
                 </Avatar>
               )}
             </div>
           ))}
           {loading && (
-            <div className="flex gap-3">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>
-                  <Bot className="h-4 w-4" />
+            <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
+              <Avatar className="h-8 w-8 border-2 border-purple-100">
+                <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500">
+                  <Bot className="h-4 w-4 text-white animate-pulse" />
                 </AvatarFallback>
               </Avatar>
-              <div className="rounded-lg bg-muted px-4 py-2">
-                <p className="text-sm text-muted-foreground">Thinking...</p>
+              <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
               </div>
             </div>
           )}
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
-      <div className="border-t p-4">
+      <div className="border-t border-slate-200 p-4 bg-white">
         <form
           onSubmit={(e) => {
             e.preventDefault()
             handleSend()
           }}
-          className="flex gap-2"
+          className="flex gap-3"
         >
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="min-h-[60px] resize-none"
+            placeholder="Ask me anything..."
+            className="min-h-[60px] resize-none border-slate-200 focus:border-purple-400 focus:ring-purple-400 rounded-xl"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -360,7 +375,12 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
               }
             }}
           />
-          <Button type="submit" disabled={loading || !input.trim()}>
+          <Button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-sm hover:shadow-md transition-all self-end"
+            size="lg"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </form>
