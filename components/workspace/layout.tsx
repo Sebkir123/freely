@@ -6,9 +6,11 @@ import { ChatPanel } from "./chat-panel"
 import { DocumentViewer } from "./document-viewer"
 import { FileTree } from "./file-tree"
 import { SettingsPanel } from "./settings-panel"
+import { LocalModeNotice } from "./local-mode-notice"
 import { Button } from "@/components/ui/button"
 import { Settings, Code, MessageSquare, FolderTree, Menu } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { isSupabaseConfigured } from "@/lib/supabase/client"
 
 interface WorkspaceLayoutProps {
   workspaceId: string
@@ -22,6 +24,7 @@ export function WorkspaceLayout({ workspaceId }: WorkspaceLayoutProps) {
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('code')
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const isSupabaseAvailable = isSupabaseConfigured()
 
   const handleSelectFile = (fileId: string, path: string) => {
     setSelectedDocumentId(fileId)
@@ -101,52 +104,61 @@ export function WorkspaceLayout({ workspaceId }: WorkspaceLayoutProps) {
           </div>
         </header>
 
-        {/* Main Content */}
-        <div className="flex flex-1 overflow-hidden">
-          {/* File Tree Panel (left side) */}
-          {viewMode === 'files' || viewMode === 'code' ? (
-            <div className="w-80 border-r">
-              <FileTree
-                projectId={selectedProjectId}
-                onSelectFile={handleSelectFile}
-                selectedFileId={selectedDocumentId}
-              />
+        {/* Main Content with Local Mode Notice */}
+        <div className="flex flex-1 flex-col overflow-hidden">
+          {/* Local Mode Notice */}
+          {!isSupabaseAvailable && (
+            <div className="p-4 border-b">
+              <LocalModeNotice />
             </div>
-          ) : null}
+          )}
 
-          {/* Center Content */}
-          <div className="flex-1 overflow-hidden">
+          <div className="flex flex-1 overflow-hidden">
+            {/* File Tree Panel (left side) */}
+            {viewMode === 'files' || viewMode === 'code' ? (
+              <div className="w-80 border-r">
+                <FileTree
+                  projectId={selectedProjectId}
+                  onSelectFile={handleSelectFile}
+                  selectedFileId={selectedDocumentId}
+                />
+              </div>
+            ) : null}
+
+            {/* Center Content */}
+            <div className="flex-1 overflow-hidden">
+              {viewMode === 'code' && (
+                <DocumentViewer
+                  documentId={selectedDocumentId}
+                  projectId={selectedProjectId}
+                />
+              )}
+              {viewMode === 'chat' && (
+                <ChatPanel
+                  projectId={selectedProjectId}
+                  workspaceId={workspaceId}
+                />
+              )}
+              {viewMode === 'settings' && (
+                <SettingsPanel workspaceId={workspaceId} />
+              )}
+              {viewMode === 'files' && !selectedDocumentId && (
+                <div className="flex h-full items-center justify-center text-muted-foreground">
+                  Select a file from the tree to view its contents
+                </div>
+              )}
+            </div>
+
+            {/* Right Panel - AI Chat (when in code mode) */}
             {viewMode === 'code' && (
-              <DocumentViewer
-                documentId={selectedDocumentId}
-                projectId={selectedProjectId}
-              />
-            )}
-            {viewMode === 'chat' && (
-              <ChatPanel
-                projectId={selectedProjectId}
-                workspaceId={workspaceId}
-              />
-            )}
-            {viewMode === 'settings' && (
-              <SettingsPanel workspaceId={workspaceId} />
-            )}
-            {viewMode === 'files' && !selectedDocumentId && (
-              <div className="flex h-full items-center justify-center text-muted-foreground">
-                Select a file from the tree to view its contents
+              <div className="w-96 border-l">
+                <ChatPanel
+                  projectId={selectedProjectId}
+                  workspaceId={workspaceId}
+                />
               </div>
             )}
           </div>
-
-          {/* Right Panel - AI Chat (when in code mode) */}
-          {viewMode === 'code' && (
-            <div className="w-96 border-l">
-              <ChatPanel
-                projectId={selectedProjectId}
-                workspaceId={workspaceId}
-              />
-            </div>
-          )}
         </div>
       </div>
     </div>
