@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { createSupabaseClient } from "@/lib/supabase/client"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { vscDarkPlus } from "react-syntax-highlighter/dist/cjs/styles/prism"
+import { CodeEditor } from "./code-editor"
+import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
+import { Save } from "lucide-react"
 
 interface DocumentViewerProps {
   documentId: string | null
@@ -14,7 +15,10 @@ interface DocumentViewerProps {
 export function DocumentViewer({ documentId, projectId }: DocumentViewerProps) {
   const [document, setDocument] = useState<any>(null)
   const [content, setContent] = useState("")
-  const supabase = createSupabaseClient()
+  const [hasChanges, setHasChanges] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const supabase = createClient()
+  const { toast } = useToast()
 
   useEffect(() => {
     if (documentId) {
@@ -64,18 +68,47 @@ export function DocumentViewer({ documentId, projectId }: DocumentViewerProps) {
     }
   }
 
-  const handleContentChange = async (newContent: string) => {
+  const handleContentChange = (newContent: string) => {
     setContent(newContent)
+    setHasChanges(true)
+  }
 
-    // Debounce save
+  const handleSave = async () => {
     if (!documentId) return
 
-    // Save to database
-    await supabase
-      .from('documents')
-      .update({ content: newContent })
-      .eq('id', documentId)
+    setSaving(true)
+    try {
+      await supabase
+        .from('documents')
+        .update({ content })
+        .eq('id', documentId)
+
+      setHasChanges(false)
+      toast({
+        title: "Saved",
+        description: "Document saved successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save document",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
+
+  // Auto-save after 2 seconds of no changes
+  useEffect(() => {
+    if (!hasChanges) return
+
+    const timer = setTimeout(() => {
+      handleSave()
+    }, 2000)
+
+    return () => clearTimeout(timer)
+  }, [content, hasChanges])
 
   if (!documentId) {
     return (
@@ -95,34 +128,29 @@ export function DocumentViewer({ documentId, projectId }: DocumentViewerProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="border-b p-4">
+      <div className="flex items-center justify-between border-b px-4 py-2">
         <h2 className="text-sm font-semibold">{document.name}</h2>
+        {hasChanges && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            <Save className="mr-2 h-3 w-3" />
+            {saving ? "Saving..." : "Save"}
+          </Button>
+        )}
       </div>
-      <ScrollArea className="flex-1">
-        <div className="p-4">
-          {document.language ? (
-            <SyntaxHighlighter
-              language={document.language}
-              style={vscDarkPlus}
-              customStyle={{
-                margin: 0,
-                borderRadius: '0.5rem',
-                padding: '1rem',
-              }}
-            >
-              {content}
-            </SyntaxHighlighter>
-          ) : (
-            <textarea
-              value={content}
-              onChange={(e) => handleContentChange(e.target.value)}
-              className="min-h-full w-full resize-none border-0 bg-transparent p-4 font-mono text-sm focus:outline-none"
-              placeholder="Start typing..."
-            />
-          )}
-        </div>
-      </ScrollArea>
+      <div className="flex-1">
+        <CodeEditor
+          documentId={documentId}
+          content={content}
+          language={document.language || "plaintext"}
+          onChange={handleContentChange}
+          onSave={handleSave}
+        />
+      </div>
     </div>
   )
 }
-

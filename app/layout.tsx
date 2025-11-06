@@ -1,14 +1,11 @@
 import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "@/components/providers"
 import { Toaster } from "@/components/ui/toaster"
 
-const inter = Inter({ subsets: ["latin"] })
-
 export const metadata: Metadata = {
-  title: "Freely - Collaborative AI Coding Platform",
-  description: "An open, private, and extensible collaborative AI coding platform",
+  title: "Freely - Personal AI Coding Platform",
+  description: "Your own personal AI coding platform - private, extensible, and self-hostable",
 }
 
 export default function RootLayout({
@@ -18,7 +15,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
         <Providers>
           {children}
           <Toaster />

@@ -1,4 +1,4 @@
-import { createSupabaseClient } from '@/lib/supabase/client'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 
 export interface MemoryEntry {
   key: string
