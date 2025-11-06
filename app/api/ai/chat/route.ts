@@ -1,11 +1,11 @@
 import { NextRequest } from 'next/server'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAIProvider } from '@/lib/ai/factory'
 import type { AIModelConfig, AIMessage } from '@/lib/ai/types'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createSupabaseServerClient()
+    const supabase = createClient()
     const body = await request.json()
     const { conversationId, projectId, workspaceId, message, history } = body
 

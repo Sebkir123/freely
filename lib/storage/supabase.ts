@@ -1,5 +1,5 @@
 // Supabase storage adapter (when Supabase is configured)
-import { createSupabaseClient } from '@/lib/supabase/client'
+import { createClient as createSupabaseClient } from '@/lib/supabase/client'
 import type { StorageAdapter } from './types'
 
 export class SupabaseStorageAdapter implements StorageAdapter {

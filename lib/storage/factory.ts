@@ -22,6 +22,9 @@ export function getStorage(): StorageAdapter {
     storageAdapter = new LocalStorageAdapter()
   }
 
+  if (!storageAdapter) {
+    throw new Error('Failed to initialize storage adapter')
+  }
   return storageAdapter
 }
 

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Send, Bot, User } from "lucide-react"
-import { createSupabaseClient } from "@/lib/supabase/client"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +22,7 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
-  const supabase = createSupabaseClient()
+  const supabase = createClient()
 
   useEffect(() => {
     if (projectId) {
