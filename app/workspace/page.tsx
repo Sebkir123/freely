@@ -1,8 +1,18 @@
-import { WorkspaceLayout } from '@/components/workspace/layout'
+'use client'
 
-export default async function WorkspacePage() {
-  // Single workspace for personal use
-  const workspaceId = 'default-workspace'
+import { ProtectedRoute } from '@/components/providers/auth-provider'
+import { EnhancedWorkspaceLayout } from '@/components/workspace/enhanced-layout'
+import { useAuth } from '@/components/providers/auth-provider'
 
-  return <WorkspaceLayout workspaceId={workspaceId} />
+export default function WorkspacePage() {
+  const { user } = useAuth()
+
+  // User-specific workspace
+  const workspaceId = user?.id || 'default-workspace'
+
+  return (
+    <ProtectedRoute>
+      <EnhancedWorkspaceLayout workspaceId={workspaceId} />
+    </ProtectedRoute>
+  )
 }

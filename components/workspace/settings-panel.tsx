@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { APIKeysSettings } from "./api-keys-settings"
 import { WorkspaceSettings } from "./workspace-settings"
 import { AgentsSettings } from "./agents-settings"
+import { AccountSettings } from "./user-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface SettingsPanelProps {
@@ -19,12 +20,16 @@ export function SettingsPanel({ workspaceId, userId }: SettingsPanelProps) {
       </div>
       <ScrollArea className="flex-1">
         <div className="p-6">
-          <Tabs defaultValue="api-keys" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+          <Tabs defaultValue="account" className="w-full">
+            <TabsList className="grid w-full grid-cols-4">
+              <TabsTrigger value="account">Account</TabsTrigger>
               <TabsTrigger value="api-keys">API Keys</TabsTrigger>
               <TabsTrigger value="agents">AI Agents</TabsTrigger>
               <TabsTrigger value="workspace">Workspace</TabsTrigger>
             </TabsList>
+            <TabsContent value="account" className="space-y-4 mt-6">
+              <AccountSettings />
+            </TabsContent>
             <TabsContent value="api-keys" className="space-y-4">
               <APIKeysSettings userId={userId} />
             </TabsContent>
