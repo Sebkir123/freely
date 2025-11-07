@@ -1,8 +1,13 @@
 "use client"
 
-import { createContext } from "react"
+import { ThemeProvider } from "./providers/theme-provider"
+import { ToastProvider } from "./providers/toast-provider"
 
-// No auth needed for single-user setup
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <>{children}</>
+  return (
+    <ThemeProvider>
+      <ToastProvider />
+      {children}
+    </ThemeProvider>
+  )
 }
