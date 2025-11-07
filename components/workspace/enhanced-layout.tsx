@@ -18,6 +18,7 @@ import { DeployDialog } from "./deploy-dialog"
 import { PomodoroTimer, AmbientSoundPlayer, FocusModeToggle } from "./focus-mode"
 import { VoiceCommandOverlay } from "./voice-input"
 import { useCelebration, MilestoneReached } from "./celebrations"
+import { UserMenu, AccountSettings } from "./user-menu"
 import { Button } from "@/components/ui/button"
 import {
   Settings,
@@ -374,6 +375,10 @@ export function EnhancedWorkspaceLayout({ workspaceId }: EnhancedWorkspaceLayout
                     <Sun className="h-4 w-4" />
                   )}
                 </Button>
+
+                <div className="w-px h-6 bg-slate-300" />
+
+                <UserMenu onOpenSettings={() => setViewMode('settings')} />
               </div>
             </header>
           )}
