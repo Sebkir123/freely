@@ -5,8 +5,8 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Send, Bot, User } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { Send, Bot, User, Sparkles } from "lucide-react"
+import { createClientSafe, isSupabaseConfigured } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -22,119 +22,149 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
   const [conversationId, setConversationId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const { toast } = useToast()
-  const supabase = createClient()
+  const hasSupabase = isSupabaseConfigured()
 
   useEffect(() => {
-    if (projectId) {
+    if (projectId && hasSupabase) {
       loadOrCreateConversation()
     }
-  }, [projectId])
+  }, [projectId, hasSupabase])
 
   useEffect(() => {
-    if (conversationId) {
+    if (conversationId && hasSupabase) {
       loadMessages()
-      subscribeToMessages()
+      const unsubscribe = subscribeToMessages()
+      return unsubscribe
     }
-  }, [conversationId])
+  }, [conversationId, hasSupabase])
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
 
   const loadOrCreateConversation = async () => {
-    if (!projectId) return
+    if (!projectId || !hasSupabase) return
 
-    // Try to get existing conversation
-    const { data: existing } = await supabase
-      .from('conversations')
-      .select('id')
-      .eq('project_id', projectId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .single()
+    try {
+      const supabase = createClientSafe()
+      if (!supabase) return
 
-    if (existing) {
-      setConversationId(existing.id)
-    } else {
-      // Create new conversation
-      const { data: newConv } = await supabase
+      const { data: existing } = await supabase
         .from('conversations')
-        .insert({
-          project_id: projectId,
-          title: 'New Conversation',
-          created_by: '00000000-0000-0000-0000-000000000000', // Single user
-        })
-        .select()
+        .select('id')
+        .eq('project_id', projectId)
+        .order('updated_at', { ascending: false })
+        .limit(1)
         .single()
 
-      if (newConv) {
-        setConversationId(newConv.id)
+      if (existing) {
+        setConversationId(existing.id)
+      } else {
+        const { data: newConv } = await supabase
+          .from('conversations')
+          .insert({
+            project_id: projectId,
+            title: 'New Conversation',
+            created_by: '00000000-0000-0000-0000-000000000000',
+          })
+          .select()
+          .single()
+
+        if (newConv) {
+          setConversationId(newConv.id)
+        }
       }
+    } catch (error) {
+      console.error('Error loading conversation:', error)
     }
   }
 
   const loadMessages = async () => {
-    if (!conversationId) return
+    if (!conversationId || !hasSupabase) return
 
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
+    try {
+      const supabase = createClientSafe()
+      if (!supabase) return
 
-    if (data) {
-      setMessages(data)
+      const { data } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true })
+
+      if (data) {
+        setMessages(data)
+      }
+    } catch (error) {
+      console.error('Error loading messages:', error)
     }
   }
 
   const subscribeToMessages = () => {
-    if (!conversationId) return
+    if (!conversationId || !hasSupabase) return () => {}
 
-    const channel = supabase
-      .channel(`messages:${conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${conversationId}`,
-        },
-        (payload) => {
-          setMessages((prev) => [...prev, payload.new as any])
-        }
-      )
-      .subscribe()
+    try {
+      const supabase = createClientSafe()
+      if (!supabase) return () => {}
 
-    return () => {
-      supabase.removeChannel(channel)
+      const channel = supabase
+        .channel(`messages:${conversationId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'messages',
+            filter: `conversation_id=eq.${conversationId}`,
+          },
+          (payload) => {
+            setMessages((prev) => [...prev, payload.new as any])
+          }
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    } catch (error) {
+      console.error('Error subscribing to messages:', error)
+      return () => {}
     }
   }
 
   const handleSend = async () => {
-    if (!input.trim() || !conversationId || loading) return
+    if (!input.trim() || loading) return
 
     const userMessage = input.trim()
     setInput("")
     setLoading(true)
 
-    // Add user message
-    const { data: userMsg } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: conversationId,
-        role: 'user',
-        content: userMessage,
-        created_by: '00000000-0000-0000-0000-000000000000', // Single user
-      })
-      .select()
-      .single()
+    const localUserMsg = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userMessage,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, localUserMsg])
 
-    if (userMsg) {
-      setMessages((prev) => [...prev, userMsg])
+    if (conversationId && hasSupabase) {
+      try {
+        const supabase = createClientSafe()
+        if (supabase) {
+          await supabase
+            .from('messages')
+            .insert({
+              conversation_id: conversationId,
+              role: 'user',
+              content: userMessage,
+              created_by: '00000000-0000-0000-0000-000000000000',
+            })
+        }
+      } catch (error) {
+        console.error('Error saving message:', error)
+      }
     }
 
-    // Call AI API
     try {
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
@@ -158,23 +188,15 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let assistantContent = ''
-      let assistantMessageId: string | null = null
 
-      // Create placeholder assistant message
-      const { data: placeholderMsg } = await supabase
-        .from('messages')
-        .insert({
-          conversation_id: conversationId,
-          role: 'assistant',
-          content: '',
-        })
-        .select()
-        .single()
-
-      if (placeholderMsg) {
-        assistantMessageId = placeholderMsg.id
-        setMessages((prev) => [...prev, placeholderMsg])
+      const placeholderId = Date.now().toString()
+      const placeholderMsg = {
+        id: placeholderId,
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString(),
       }
+      setMessages((prev) => [...prev, placeholderMsg])
 
       if (reader) {
         while (true) {
@@ -193,16 +215,13 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
                 const parsed = JSON.parse(data)
                 if (parsed.content) {
                   assistantContent += parsed.content
-                  // Update message in real-time
-                  if (assistantMessageId) {
-                    setMessages((prev) =>
-                      prev.map((msg) =>
-                        msg.id === assistantMessageId
-                          ? { ...msg, content: assistantContent }
-                          : msg
-                      )
+                  setMessages((prev) =>
+                    prev.map((msg) =>
+                      msg.id === placeholderId
+                        ? { ...msg, content: assistantContent }
+                        : msg
                     )
-                  }
+                  )
                 }
               } catch (e) {
                 // Skip invalid JSON
@@ -212,18 +231,27 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
         }
       }
 
-      // Final update to assistant message
-      if (assistantContent && assistantMessageId) {
-        await supabase
-          .from('messages')
-          .update({ content: assistantContent })
-          .eq('id', assistantMessageId)
+      if (conversationId && hasSupabase && assistantContent) {
+        try {
+          const supabase = createClientSafe()
+          if (supabase) {
+            await supabase
+              .from('messages')
+              .insert({
+                conversation_id: conversationId,
+                role: 'assistant',
+                content: assistantContent,
+              })
+          }
+        } catch (error) {
+          console.error('Error saving assistant message:', error)
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error calling AI:', error)
       toast({
         title: "Error",
-        description: "Failed to get AI response. Please check your API keys and try again.",
+        description: error.message || "Failed to get AI response. Please check your API keys and try again.",
         variant: "destructive",
       })
     } finally {
@@ -237,81 +265,109 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
 
   if (!projectId) {
     return (
-      <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
-        Select a project to start chatting
+      <div className="flex h-full items-center justify-center p-8 text-center bg-gradient-to-b from-white to-slate-50">
+        <div className="space-y-4">
+          <div className="w-16 h-16 bg-gradient-to-r from-purple-100 to-pink-100 rounded-full flex items-center justify-center mx-auto">
+            <Sparkles className="h-8 w-8 text-purple-600" />
+          </div>
+          <div>
+            <p className="text-lg font-medium text-slate-700">AI Assistant Ready</p>
+            <p className="text-sm text-slate-500">Select a project to start chatting</p>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b p-4">
-        <h2 className="text-sm font-semibold">AI Chat</h2>
+    <div className="flex h-full flex-col bg-gradient-to-b from-white to-slate-50">
+      <div className="border-b border-slate-200 p-4 bg-white">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+            <Bot className="h-5 w-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-700">AI Assistant</h2>
+            {!hasSupabase && (
+              <p className="text-xs text-slate-500">Local mode</p>
+            )}
+          </div>
+        </div>
       </div>
       <ScrollArea className="flex-1 p-4">
         <div className="space-y-4">
-          {messages.map((message) => (
+          {messages.map((message, index) => (
             <div
               key={message.id}
               className={cn(
-                "flex gap-3",
+                "flex gap-3 animate-in fade-in slide-in-from-bottom-2 duration-300",
                 message.role === 'user' ? 'justify-end' : 'justify-start'
               )}
+              style={{ animationDelay: `${index * 50}ms` }}
             >
               {message.role === 'assistant' && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    <Bot className="h-4 w-4" />
+                <Avatar className="h-8 w-8 border-2 border-purple-100">
+                  <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500">
+                    <Bot className="h-4 w-4 text-white" />
                   </AvatarFallback>
                 </Avatar>
               )}
               <div
                 className={cn(
-                  "max-w-[80%] rounded-lg px-4 py-2",
+                  "max-w-[85%] rounded-2xl px-4 py-3 shadow-sm transition-all hover:shadow-md",
                   message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted'
+                    ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                    : 'bg-white border border-slate-200'
                 )}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                <p className={cn(
+                  "text-sm whitespace-pre-wrap leading-relaxed",
+                  message.role === 'assistant' && "text-slate-700"
+                )}>
+                  {message.content || <span className="text-slate-400">Thinking...</span>}
+                </p>
               </div>
               {message.role === 'user' && (
-                <Avatar className="h-8 w-8">
-                  <AvatarFallback>
-                    <User className="h-4 w-4" />
+                <Avatar className="h-8 w-8 border-2 border-purple-100">
+                  <AvatarFallback className="bg-gradient-to-r from-slate-500 to-slate-600">
+                    <User className="h-4 w-4 text-white" />
                   </AvatarFallback>
                 </Avatar>
               )}
             </div>
           ))}
           {loading && (
-            <div className="flex gap-3">
-              <Avatar className="h-8 w-8">
-                <AvatarFallback>
-                  <Bot className="h-4 w-4" />
+            <div className="flex gap-3 animate-in fade-in slide-in-from-bottom-2">
+              <Avatar className="h-8 w-8 border-2 border-purple-100">
+                <AvatarFallback className="bg-gradient-to-r from-purple-500 to-pink-500">
+                  <Bot className="h-4 w-4 text-white animate-pulse" />
                 </AvatarFallback>
               </Avatar>
-              <div className="rounded-lg bg-muted px-4 py-2">
-                <p className="text-sm text-muted-foreground">Thinking...</p>
+              <div className="rounded-2xl bg-white border border-slate-200 px-4 py-3 shadow-sm">
+                <div className="flex gap-1">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                </div>
               </div>
             </div>
           )}
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
-      <div className="border-t p-4">
+      <div className="border-t border-slate-200 p-4 bg-white">
         <form
           onSubmit={(e) => {
             e.preventDefault()
             handleSend()
           }}
-          className="flex gap-2"
+          className="flex gap-3"
         >
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your message..."
-            className="min-h-[60px] resize-none"
+            placeholder="Ask me anything..."
+            className="min-h-[60px] resize-none border-slate-200 focus:border-purple-400 focus:ring-purple-400 rounded-xl"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault()
@@ -319,7 +375,12 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
               }
             }}
           />
-          <Button type="submit" disabled={loading || !input.trim()}>
+          <Button
+            type="submit"
+            disabled={loading || !input.trim()}
+            className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-sm hover:shadow-md transition-all self-end"
+            size="lg"
+          >
             <Send className="h-4 w-4" />
           </Button>
         </form>
@@ -327,4 +388,3 @@ export function ChatPanel({ projectId, workspaceId }: ChatPanelProps) {
     </div>
   )
 }
-
